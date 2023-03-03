@@ -1,0 +1,44 @@
+name: Upload to Poki
+description: Github Action to upload game to Poki
+author: davidsalsinha@gmail.com
+branding:
+  icon: upload-cloud
+  color: blue
+inputs:
+  auth:
+    description: 'Authorization token'
+    required: true
+    default: ''
+outputs:
+  qa_url:
+    description: QA URL
+    value: ${{ steps.poki_urls.outputs.qa_url }}
+  preview_url:
+    description: Preview URL
+    value: ${{ steps.poki_urls.outputs.preview_url }}
+runs:
+  using: composite
+  steps:
+    - name: Setup Poki auth
+      if: ${{ inputs.auth }} != ''
+      shell: sh
+      run: |
+        mkdir $XDG_CONFIG_HOME/poki
+        echo '${{ inputs.auth }}' > $XDG_CONFIG_HOME/poki/auth.json
+    - name: Send to Poki
+      if: ${{ inputs.auth }} != ''
+      shell: sh
+      run: |
+        timeout 60s npx @poki/cli upload --name "$(git rev-parse --short HEAD)" --notes "$(git log -1 --pretty=%B)" > poki_upload.txt
+    - name: Get Poki URLs
+      id: poki_urls
+      if: ${{ inputs.auth }} != ''
+      shell: sh
+      run: >
+        cat poki_upload.txt |
+        sed -E '/^$/d' |
+        tail -2 |
+        sed -E 's/  (QA|Preview): (.*)/\2/g' |
+        sed -E 1's/^(http.*)/qa_url=\1/' |
+        sed -E 2's/^(http.*)/preview_url=\1/'
+        >> $GITHUB_OUTPUT
